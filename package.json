@@ -29,6 +29,9 @@
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
+  "optionalDependencies": {
+    "seekdb": "file:../../oceanbase/seekdb-js/packages/seekdb"
+  },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
