@@ -119,14 +119,24 @@ A personal Claude assistant accessible via WhatsApp, with minimal custom code.
 - From main: can schedule tasks for any group, view/manage all tasks
 - From other groups: can only manage that group's tasks
 
-### Database Backend
+### Database Layer
 - All database access goes through a unified adapter layer (`src/db/index.ts`)
 - `IDatabaseAdapter` interface defines the contract; adapters implement it
 - **SQLite** (default): `better-sqlite3`, single file at `store/messages.db`, zero configuration
 - **seekdb**: OceanBase-based vector/document database, supports embedded mode (local file) and server mode (remote connection)
-- Backend selected via `DB_TYPE` environment variable (`sqlite` or `seekdb`)
+- DB type selected via `DB_TYPE` environment variable (`sqlite` or `seekdb`)
 - All operations are async (`Promise`-based) for adapter compatibility
 - Setup scripts, main app, and channels all go through the adapter — no direct SQLite access outside the adapter
+
+### Semantic Search (seekdb only)
+- Optional capability enabled when `DB_TYPE=seekdb` (or explicitly via `SEARCH_ENABLED=true`)
+- `ISearchService` interface with two implementations: `SeekdbSearchService` (production) and `NoopSearchService` (fallback/disabled)
+- Messages are indexed asynchronously via an in-memory batch queue (flush every 5s or 50 messages)
+- 3-tier retrieval: hybrid search (full-text + vector, RRF fusion) → pure vector search → empty result
+- Optional time-decay scoring to prioritize recent messages
+- Container agents access search via `search_memory` IPC tool (request/response files)
+- Optional automatic context injection before agent prompts (`SEARCH_CONTEXT_ENABLED`)
+- Local embedding via `@seekdb/default-embed` (all-MiniLM-L6-v2, 384-dim), extensible to OpenAI/Qwen
 
 ### Group Management
 - New groups are added explicitly via the main channel

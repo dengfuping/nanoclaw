@@ -124,7 +124,7 @@ claude
 WhatsApp (baileys) --> 数据库 --> 轮询循环 --> 容器 (Claude Agent SDK) --> 响应
 ```
 
-单一 Node.js 进程。智能体在具有挂载目录的隔离 Linux 容器中执行。每个群组的消息队列都带有全局并发控制。通过文件系统进行进程间通信（IPC）。数据库后端可插拔——SQLite（默认）或 seekdb——通过 `DB_TYPE` 环境变量选择。
+单一 Node.js 进程。智能体在具有挂载目录的隔离 Linux 容器中执行。每个群组的消息队列都带有全局并发控制。通过文件系统进行进程间通信（IPC）。数据库层可插拔——SQLite（默认）或 seekdb——通过 `DB_TYPE` 环境变量选择。
 
 关键文件：
 - `src/index.ts` - 编排器：状态管理、消息循环、智能体调用
@@ -134,7 +134,7 @@ WhatsApp (baileys) --> 数据库 --> 轮询循环 --> 容器 (Claude Agent SDK) 
 - `src/group-queue.ts` - 各带全局并发限制的群组队列
 - `src/container-runner.ts` - 生成流式智能体容器
 - `src/task-scheduler.ts` - 运行计划任务
-- `src/db/` - 数据库适配层（SQLite 和 seekdb 后端）
+- `src/db/` - 数据库适配层（SQLite 和 seekdb）
 - `groups/*/CLAUDE.md` - 各群组的记忆
 
 ## FAQ

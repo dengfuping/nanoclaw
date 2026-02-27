@@ -30,7 +30,8 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "seekdb": "file:../../oceanbase/seekdb-js/packages/seekdb"
+    "@seekdb/default-embed": "^1.2.0",
+    "seekdb": "^1.2.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

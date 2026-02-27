@@ -124,7 +124,7 @@ Skills we'd like to see:
 WhatsApp (baileys) --> Database --> Polling loop --> Container (Claude Agent SDK) --> Response
 ```
 
-Single Node.js process. Agents execute in isolated Linux containers with filesystem isolation. Only mounted directories are accessible. Per-group message queue with concurrency control. IPC via filesystem. Database backend is pluggable — SQLite (default) or seekdb — selected via `DB_TYPE` environment variable.
+Single Node.js process. Agents execute in isolated Linux containers with filesystem isolation. Only mounted directories are accessible. Per-group message queue with concurrency control. IPC via filesystem. Database layer is pluggable — SQLite (default) or seekdb — selected via `DB_TYPE` environment variable.
 
 Key files:
 - `src/index.ts` - Orchestrator: state, message loop, agent invocation
@@ -134,7 +134,7 @@ Key files:
 - `src/group-queue.ts` - Per-group queue with global concurrency limit
 - `src/container-runner.ts` - Spawns streaming agent containers
 - `src/task-scheduler.ts` - Runs scheduled tasks
-- `src/db/` - Database adapter layer (SQLite and seekdb backends)
+- `src/db/` - Database adapter layer (SQLite and seekdb)
 - `groups/*/CLAUDE.md` - Per-group memory
 
 ## FAQ

@@ -2,11 +2,11 @@
 
 ## Summary
 
-Introduce a pluggable database adapter layer supporting both SQLite (default) and seekdb backends. All database access now goes through `IDatabaseAdapter`, enabling seamless backend switching via `DB_TYPE` environment variable.
+Introduce a pluggable database adapter layer supporting both SQLite (default) and seekdb. All database access now goes through `IDatabaseAdapter`, enabling seamless switching via `DB_TYPE` environment variable.
 
 ## Motivation
 
-- Enable seekdb (OceanBase-based) as an alternative database backend for vector/hybrid search capabilities in the future
+- Enable seekdb (OceanBase-based) as an alternative database for vector/hybrid search capabilities in the future
 - Decouple application logic from SQLite-specific APIs
 - Maintain full backward compatibility — no changes needed for existing SQLite users
 
@@ -26,7 +26,7 @@ After:   src/db/index.ts → IDatabaseAdapter → SqliteAdapter | SeekdbAdapter
 | `src/db/sqlite.ts` | 580 | SQLite adapter (better-sqlite3, synchronous internally, async API) |
 | `src/db/seekdb.ts` | 550 | seekdb adapter (MySQL-compatible SQL dialect, async) |
 | `src/db/helpers.ts` | 56 | Shared `RegisteredGroup` mapping/serialization helpers |
-| `scripts/verify-adapter.ts` | 340 | Integration verification (58 assertions, both backends) |
+| `src/integration.test.ts` | 417 | Integration tests — full suite runs against both SQLite and seekdb |
 | `scripts/migrate-sqlite-to-seekdb.ts` | 151 | One-time ETL: SQLite → seekdb data migration |
 
 ### Deleted Files
@@ -68,7 +68,7 @@ After:   src/db/index.ts → IDatabaseAdapter → SqliteAdapter | SeekdbAdapter
 | `CLAUDE.md` | Key files table: `src/db.ts` → `src/db/` directory entries |
 | `README.md` | Architecture diagram and key files list updated |
 | `README_zh.md` | Same updates (Chinese) |
-| `docs/REQUIREMENTS.md` | New "Database Backend" architecture decision; update SQLite references |
+| `docs/REQUIREMENTS.md` | New "Database Layer" architecture decision; update SQLite references |
 
 ## Key Design Decisions
 
@@ -84,11 +84,9 @@ After:   src/db/index.ts → IDatabaseAdapter → SqliteAdapter | SeekdbAdapter
 
 4. **Setup scripts use adapter** — All 4 setup scripts (`register`, `groups`, `verify`, `environment`) now go through the adapter layer instead of opening SQLite directly. The inline WhatsApp sync script in `groups.ts` was refactored to output JSON to stdout, with the parent process writing via the adapter.
 
-5. **Environment variable naming** — `DB_TYPE` (not `DB_BACKEND`) to align with common conventions (`DB_TYPE`, `DB_HOST`, `DB_PORT`).
-
 ## Verification
 
-Both backends pass 58 integration assertions covering:
+Both DB types pass 58 integration assertions covering:
 
 | Category | Assertions | Tests |
 |----------|-----------|-------|
@@ -107,8 +105,8 @@ Both backends pass 58 integration assertions covering:
 
 Run verification:
 ```bash
-npx tsx scripts/verify-adapter.ts              # SQLite (default)
-DB_TYPE=seekdb npx tsx scripts/verify-adapter.ts  # seekdb
+npx vitest run src/integration.test.ts   # runs both SQLite and seekdb suites
+npx vitest run                           # full test suite (422 tests)
 ```
 
 ## Known Limitations

@@ -38,6 +38,12 @@ import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
+import {
+  closeSearchService,
+  enqueueForIndexing,
+  getSearchService,
+  initSearchService,
+} from './search/index.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -167,7 +173,39 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (!hasTrigger) return true;
   }
 
-  const prompt = formatMessages(missedMessages);
+  let prompt = formatMessages(missedMessages);
+
+  // Optional: inject semantically relevant past context before the prompt
+  if (process.env.SEARCH_CONTEXT_ENABLED === 'true') {
+    try {
+      const searchService = getSearchService();
+      const contextLimit = parseInt(
+        process.env.SEARCH_CONTEXT_LIMIT || '3',
+        10,
+      );
+      const latestUserMsg = [...missedMessages]
+        .reverse()
+        .find((m) => !m.is_from_me);
+      if (latestUserMsg) {
+        const results = await searchService.searchMessages(
+          latestUserMsg.content,
+          { chatJid, limit: contextLimit, timeDecay: true },
+        );
+        const relevant = results.filter((r) => r.score > 0.3);
+        if (relevant.length > 0) {
+          const contextBlock = relevant
+            .map(
+              (r) =>
+                `[${r.metadata.timestamp}] ${r.metadata.sender_name}: ${r.content}`,
+            )
+            .join('\n');
+          prompt = `<relevant_context>\n${contextBlock}\n</relevant_context>\n\n${prompt}`;
+        }
+      }
+    } catch (err) {
+      logger.debug({ err }, 'Context injection skipped due to error');
+    }
+  }
 
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
   // these messages. Save the old cursor so we can roll back on error.
@@ -449,12 +487,14 @@ async function main(): Promise<void> {
   ensureContainerSystemRunning();
   await initDatabase();
   logger.info('Database initialized');
+  await initSearchService();
   await loadState();
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
     await queue.shutdown(10000);
+    await closeSearchService();
     for (const ch of channels) await ch.disconnect();
     process.exit(0);
   };
@@ -465,6 +505,7 @@ async function main(): Promise<void> {
   const channelOpts = {
     onMessage: (_chatJid: string, msg: NewMessage) => {
       storeMessage(msg);
+      enqueueForIndexing(msg);
     },
     onChatMetadata: (
       chatJid: string,

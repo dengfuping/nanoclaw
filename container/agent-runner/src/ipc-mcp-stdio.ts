@@ -280,6 +280,87 @@ Use available_groups.json to find the JID for a group. The folder name should be
   },
 );
 
+// -- Semantic search tool (IPC request-response) --
+
+const SEARCH_DIR = path.join(IPC_DIR, 'search');
+const SEARCH_POLL_INTERVAL = 200;
+const SEARCH_TIMEOUT = 30_000;
+
+server.tool(
+  'search_memory',
+  'Search past conversations by meaning (semantic search). Finds messages related to your query even if they use different words. Use when you need to recall what was discussed about a topic.',
+  {
+    query: z
+      .string()
+      .describe('What to search for, e.g. "project deadline discussion"'),
+    limit: z
+      .number()
+      .default(10)
+      .optional()
+      .describe('Max results to return'),
+  },
+  async (args) => {
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const request = {
+      type: 'search_request',
+      id: requestId,
+      query: args.query,
+      chatJid,
+      limit: args.limit ?? 10,
+    };
+
+    writeIpcFile(SEARCH_DIR, request);
+
+    // Poll for response file (host writes {requestId}.json)
+    const responseFile = path.join(SEARCH_DIR, 'responses', `${requestId}.json`);
+    const deadline = Date.now() + SEARCH_TIMEOUT;
+
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, SEARCH_POLL_INTERVAL));
+
+      if (!fs.existsSync(responseFile)) continue;
+
+      let data: { id?: string; error?: string; results?: { metadata: { sender_name: string; timestamp: string }; content: string; score: number }[] };
+      try {
+        data = JSON.parse(fs.readFileSync(responseFile, 'utf-8'));
+      } catch {
+        continue; // File may be partially written, retry
+      }
+      fs.unlinkSync(responseFile);
+
+      if (data.error) {
+        return {
+          content: [{ type: 'text' as const, text: `Search error: ${data.error}` }],
+          isError: true,
+        };
+      }
+
+      if (!data.results || data.results.length === 0) {
+        return {
+          content: [{ type: 'text' as const, text: 'No relevant messages found.' }],
+        };
+      }
+
+      const formatted = data.results
+        .map(
+          (r) =>
+            `[${r.metadata.timestamp}] ${r.metadata.sender_name}: ${r.content} (relevance: ${(r.score * 100).toFixed(0)}%)`,
+        )
+        .join('\n\n');
+
+      return {
+        content: [{ type: 'text' as const, text: `Found ${data.results.length} relevant messages:\n\n${formatted}` }],
+      };
+    }
+
+    return {
+      content: [{ type: 'text' as const, text: 'Search timed out. The search service may not be available.' }],
+      isError: true,
+    };
+  },
+);
+
 // Start the stdio transport
 const transport = new StdioServerTransport();
 await server.connect(transport);

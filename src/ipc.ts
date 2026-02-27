@@ -13,6 +13,8 @@ import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db/index.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
+import type { ISearchService } from './search/index.js';
+import { getSearchService } from './search/index.js';
 import { RegisteredGroup } from './types.js';
 
 export interface IpcDeps {
@@ -142,6 +144,41 @@ export function startIpcWatcher(deps: IpcDeps): void {
         }
       } catch (err) {
         logger.error({ err, sourceGroup }, 'Error reading IPC tasks directory');
+      }
+
+      // Process search requests from this group's IPC directory
+      const searchDir = path.join(ipcBaseDir, sourceGroup, 'search');
+      try {
+        if (fs.existsSync(searchDir)) {
+          const searchFiles = fs
+            .readdirSync(searchDir)
+            .filter((f) => f.endsWith('.json'));
+          for (const file of searchFiles) {
+            const filePath = path.join(searchDir, file);
+            try {
+              const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+              if (data.type === 'search_request' && data.id && data.query) {
+                await processSearchRequest(data, searchDir);
+              }
+              fs.unlinkSync(filePath);
+            } catch (err) {
+              logger.error(
+                { file, sourceGroup, err },
+                'Error processing IPC search request',
+              );
+              try {
+                fs.unlinkSync(filePath);
+              } catch {
+                /* ignore cleanup errors */
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.error(
+          { err, sourceGroup },
+          'Error reading IPC search directory',
+        );
       }
     }
 
@@ -383,5 +420,52 @@ export async function processTaskIpc(
 
     default:
       logger.warn({ type: data.type }, 'Unknown IPC task type');
+  }
+}
+
+function writeAtomicJson(dir: string, filename: string, data: object): void {
+  fs.mkdirSync(dir, { recursive: true });
+  const tempPath = path.join(dir, `${filename}.tmp`);
+  const finalPath = path.join(dir, filename);
+  fs.writeFileSync(tempPath, JSON.stringify(data));
+  fs.renameSync(tempPath, finalPath);
+}
+
+/** @internal — exported for testing. Accepts optional service to avoid module mocking. */
+export async function processSearchRequest(
+  data: { id: string; query: string; chatJid?: string; limit?: number },
+  searchDir: string,
+  service?: ISearchService,
+): Promise<void> {
+  const responseDir = path.join(searchDir, 'responses');
+  const responseFile = `${data.id}.json`;
+
+  try {
+    const searchService = service ?? getSearchService();
+    const results = await searchService.searchMessages(data.query, {
+      chatJid: data.chatJid || undefined,
+      limit: data.limit ?? 10,
+      timeDecay: true,
+    });
+
+    writeAtomicJson(responseDir, responseFile, {
+      type: 'search_response',
+      id: data.id,
+      results,
+    });
+
+    logger.debug(
+      { requestId: data.id, resultCount: results.length },
+      'Search request processed',
+    );
+  } catch (err) {
+    logger.error({ err, requestId: data.id }, 'Search request failed');
+
+    writeAtomicJson(responseDir, responseFile, {
+      type: 'search_response',
+      id: data.id,
+      error: err instanceof Error ? err.message : String(err),
+      results: [],
+    });
   }
 }

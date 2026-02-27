@@ -11,9 +11,9 @@ export type { ChatInfo, IDatabaseAdapter, TaskUpdates } from './types.js';
 let adapter: IDatabaseAdapter;
 
 export async function initDatabase(): Promise<void> {
-  const backend = process.env.DB_TYPE || 'sqlite';
+  const dbType = process.env.DB_TYPE || 'sqlite';
 
-  if (backend === 'seekdb') {
+  if (dbType === 'seekdb') {
     const { SeekdbAdapter } = await import('./seekdb.js');
     adapter = new SeekdbAdapter({
       path: process.env.SEEKDB_PATH || undefined,

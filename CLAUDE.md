@@ -21,6 +21,9 @@ Single Node.js process that connects to WhatsApp, routes messages to Claude Agen
 | `src/db/types.ts` | `IDatabaseAdapter` interface and shared types |
 | `src/db/sqlite.ts` | SQLite adapter (default, via better-sqlite3) |
 | `src/db/seekdb.ts` | seekdb adapter (optional, via seekdb-js that supports embedded or server mode) |
+| `src/search/index.ts` | Search service factory, batch queue, public API |
+| `src/search/seekdb-search.ts` | Semantic search via seekdb Collections (vector/hybrid) |
+| `src/search/noop-search.ts` | No-op search (used when search is disabled or SQLite) |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
 | `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |
 
